@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Neon Ping Pong Arena</title>
+    <!-- Tambahkan pustaka MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils"></script>
+
+    <style>
+        body {
+            background: black;
+            font-family: 'Press Start 2P', bitmap font; /* Use pixel font */
+            color: white;
+            overflow: hidden;
+			
+            
+        }
+    
+        #game-container {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            background: url('Assets/Sprites/pala2.png') no-repeat center center;
+        }
+    
+        .court-line {
+            position: absolute;
+            background: white;
+        }
+    
+        #center-line {
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+        }
+    
+        #paddle-left, #paddle-right {
+            position: absolute;
+            width: 20px;
+            height: 150px;
+            background: pink;
+        }
+    
+    
+        #ball {
+            position: absolute;
+            width: 60px; /* Adjust size to fit the sprite */
+            height: 60px; /* Adjust size to fit the sprite */
+            background: url('Assets/Sprites/pala2.png') no-repeat center center;
+            background-size: contain;
+			transform: translate(-27%, -50%); /* agar tepat tengah */
+
+            left: 
+        }
+    
+        #scoreboard {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 55px;
+            font-size: 16px; /* Adjust size for pixel font */
+        }
+    
+        .score-box {
+            text-align: center;
+			
+        }
+
+        .score-label {
+            margin-bottom: 10px; /* Add space between the name and the score */
+        }
+
+        .score-number {
+            font-size: 24px; /* Adjust size for pixel font */
+            font-weight: bold;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+
+	<audio autoplay loop>
+			<source src="backsound.mp3" type="audio/mpeg">
+		</audio>
+
+    <div id="game-container">
+        <div class="court-line" id="center-line"></div>
+        <div id="scoreboard">
+            <div class="score-box">
+                <div class="score-label">NORMAN</div>
+                <div class="score-number" id="score-left">0</div>
+            </div>
+            <div class="score-box">
+                <div class="score-label">PONGKY</div>
+                <div class="score-number" id="score-right">0</div>
+            </div>
+        </div>
+        <div id="paddle-left"></div>
+        <div id="paddle-right"></div>
+        <div id="ball"></div>
+        <div id="score-alert"></div>
+        <div id="countdown"></div>
+        <div id="win-message">
+            <div id="winner-text"></div>
+        </div>
+        <div id="speed-meter">
+            <div id="speed-bar"></div>
+        </div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const paddleLeft = document.getElementById('paddle-left');
+        const paddleRight = document.getElementById('paddle-right');
+        let ball = document.getElementById('ball');
+        const scoreLeft = document.getElementById('score-left');
+        const scoreRight = document.getElementById('score-right');
+        const scoreAlert = document.getElementById('score-alert');
+        const countdown = document.getElementById('countdown');
+        const winMessage = document.getElementById('win-message');
+        const winnerText = document.getElementById('winner-text');
+        const speedBar = document.getElementById('speed-bar');
+
+        // Game state
+        let leftScore = 0, rightScore = 0;
+        let ballX = 0, ballY = 0;
+        let ballSpeedX = 0, ballSpeedY = 0;
+        const paddleSpeed = 15;
+        let isGameActive = false;
+        let gameInterval;
+        let paddleHeight = 150;
+        let ballSize = 24;
+        let rallyCount = 0;
+        let maxBallSpeed = 30;
+        let baseBallSpeed = 15;
+
+        // Keyboard controls
+        const keys = { w: false, s: false, ArrowUp: false, ArrowDown: false };
+        
+        document.addEventListener('keydown', e => keys[e.key] = true);
+        document.addEventListener('keyup', e => keys[e.key] = false);
+
+        // Efek partikel
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 20; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.background = color;
+                particle.style.left = (x + Math.random() * 30 - 15) + 'px';
+                particle.style.top = (y + Math.random() * 30 - 15) + 'px';
+                gameContainer.appendChild(particle);
+                
+                // Random size
+                const size = 3 + Math.random() * 8;
+                particle.style.width = size + 'px';
+                particle.style.height = size + 'px';
+                
+                setTimeout(() => particle.remove(), 1000);
+            }
+        }
+
+        // Efek trail bola
+        function createBallTrail(x, y) {
+            const trail = document.createElement('div');
+            trail.className = 'ball-trail';
+            trail.style.left = x + 'px';
+            trail.style.top = y + 'px';
+            gameContainer.appendChild(trail);
+            setTimeout(() => trail.remove(), 500);
+        }
+
+        // Efek paddle hit
+        function createPaddleHit(paddle, yPos) {
+            const hit = document.createElement('div');
+            hit.className = 'paddle-hit';
+            const paddleRect = paddle.getBoundingClientRect();
+            const containerRect = gameContainer.getBoundingClientRect();
+            
+            hit.style.left = (paddle === paddleLeft ? paddleRect.right - containerRect.left - 5 : paddleRect.left - containerRect.left) + 'px';
+            hit.style.top = (yPos - 30) + 'px';
+            
+            if (paddle === paddleLeft) {
+                hit.style.background = 'rgba(255, 0, 102, 0.7)';
+            } else {
+                hit.style.background = 'rgba(0, 255, 255, 0.7)';
+            }
+            
+            gameContainer.appendChild(hit);
+            setTimeout(() => hit.remove(), 300);
+        }
+
+        // Animasi skor
+        function showScoreAlert(text, color) {
+            scoreAlert.textContent = text;
+            scoreAlert.style.color = color;
+            scoreAlert.style.textShadow = '0 0 30px ' + color;
+            scoreAlert.style.animation = 'none';
+            void scoreAlert.offsetWidth;
+            scoreAlert.style.animation = 'score-pop 1s';
+        }
+
+        // Update speed meter
+        function updateSpeedMeter() {
+            const currentSpeed = Math.sqrt(ballSpeedX * ballSpeedX + ballSpeedY * ballSpeedY);
+            const speedPercentage = Math.min(100, (currentSpeed / maxBallSpeed) * 100);
+            speedBar.style.width = speedPercentage + '%';
+            
+            // Change color based on speed
+            const hue = 180 + (speedPercentage * 1.8); // From cyan (180) to red (360)
+            speedBar.style.background = 'linear-gradient(90deg, hsl(' + hue + ', 100%, 50%), hsl(' + (hue + 60) + ', 100%, 50%))';
+        }
+
+        // Countdown sebelum game dimulai
+        function startCountdown() {
+            countdown.textContent = "READY";
+            countdown.style.animation = 'none';
+            void countdown.offsetWidth;
+            countdown.style.animation = 'countdown-fade 0.5s';
+            
+            setTimeout(() => {
+                countdown.textContent = "GO!";
+                countdown.style.animation = 'none';
+                void countdown.offsetWidth;
+                countdown.style.animation = 'countdown-fade 0.5s';
+                
+                setTimeout(() => {
+                    isGameActive = true;
+                    gameInterval = requestAnimationFrame(update);
+                }, 500);
+            }, 1000);
+        }
+
+ 
+        // Update permainan
+        function update() {
+            if (!isGameActive) return;
+
+            // Move the ball
+            ballX += ballSpeedX;
+            ballY += ballSpeedY;
+
+            // AI for Right Paddle
+            const paddleRightTop = parseFloat(paddleRight.style.top || 0);
+            const ballCenterY = ballY + ballSize / 2;
+
+
+            const aiSpeed = 9;    
+            if (paddleRightTop + paddleHeight / 2 < ballCenterY - 10) {
+                // Move paddle down if the ball is below the paddle
+                paddleRight.style.top = Math.min(
+                    gameContainer.clientHeight - paddleHeight - 20,
+                    paddleRightTop + 8 // AI speed
+                ) + 'px';
+            } else if (paddleRightTop + paddleHeight / 2 > ballCenterY + 10) {
+                // Move paddle up if the ball is above the paddle
+                paddleRight.style.top = Math.max(20, paddleRightTop - 9) + 'px'; // AI speed
+            }
+
+            // Ball collision with paddles
+            const paddleLeftRect = paddleLeft.getBoundingClientRect();
+            const paddleRightRect = paddleRight.getBoundingClientRect();
+            const ballRect = ball.getBoundingClientRect();
+
+            if (
+                ballRect.left <= paddleLeftRect.right &&
+                ballRect.right >= paddleLeftRect.left &&
+                ballRect.top <= paddleLeftRect.bottom &&
+                ballRect.bottom >= paddleLeftRect.top
+            ) {
+                const hitPosition = (ballRect.top + ballRect.height / 2 - paddleLeftRect.top) / paddleHeight;
+                const bounceAngle = hitPosition * Math.PI - Math.PI / 2; // -45° to 45°
+                const speedIncrease = Math.min(1.5, 1 + rallyCount * 0.03);
+                ballSpeedX = Math.abs(ballSpeedX) * speedIncrease;
+                ballSpeedY = Math.sin(bounceAngle) * 12 * speedIncrease;
+
+                rallyCount++;
+                updateSpeedMeter();
+            }
+
+            if (
+                ballRect.right >= paddleRightRect.left &&
+                ballRect.left <= paddleRightRect.right &&
+                ballRect.top <= paddleRightRect.bottom &&
+                ballRect.bottom >= paddleRightRect.top
+            ) {
+                const hitPosition = (ballRect.top + ballRect.height / 2 - paddleRightRect.top) / paddleHeight;
+                const bounceAngle = hitPosition * Math.PI - Math.PI / 2; // -45° to 45°
+                const speedIncrease = Math.min(1.5, 1 + rallyCount * 0.03);
+                ballSpeedX = -Math.abs(ballSpeedX) * speedIncrease;
+                ballSpeedY = Math.sin(bounceAngle) * 12 * speedIncrease;
+
+                rallyCount++;
+                updateSpeedMeter();
+            }
+
+            // Ball collision with top/bottom walls
+            if (ballY <= 20 || ballY >= gameContainer.clientHeight - ballSize - 20) {
+                ballSpeedY *= -1;
+            }
+
+            // Scoring
+            if (ballX <= 0) {
+                rightScore++;
+                scoreRight.textContent = rightScore;
+                resetBall();
+                checkGameOver();
+                return;
+            }
+            if (ballX >= gameContainer.clientWidth - ballSize) {
+                leftScore++;
+                scoreLeft.textContent = leftScore;
+                resetBall();
+                checkGameOver();
+                return;
+            }
+
+            // Update ball position
+            ball.style.left = ballX + 'px';
+            ball.style.top = ballY + 'px';
+
+            gameInterval = requestAnimationFrame(update);
+        }
+
+        function resetBall() {
+            isGameActive = false;
+            cancelAnimationFrame(gameInterval);
+            rallyCount = 0;
+            updateSpeedMeter();
+            
+            // Reset posisi bola
+            ballX = gameContainer.clientWidth/2 - ballSize/2;
+            ballY = gameContainer.clientHeight/2 - ballSize/2;
+            ball.style.left = ballX + 'px';
+            ball.style.top = ballY + 'px';
+            
+            // Reset kecepatan bola
+            ballSpeedX = baseBallSpeed * (Math.random() > 0.5 ? 1 : -1);
+            ballSpeedY = baseBallSpeed * (Math.random() * 2 - 1);
+            
+            // Mulai countdown
+            setTimeout(startCountdown, 500);
+        }
+
+        // Inisialisasi game
+        function initGame() {
+            // Set posisi paddle
+            paddleLeft.style.top = (gameContainer.clientHeight/2 - paddleHeight/2) + 'px';
+            paddleLeft.style.left = '50px';
+            paddleRight.style.top = (gameContainer.clientHeight/2 - paddleHeight/2) + 'px';
+            paddleRight.style.right = '50px';
+            
+            // Mulai game
+            resetBall();
+        }
+
+        // Mulai game saat halaman siap
+        window.addEventListener('load', initGame);
+
+        // Inisialisasi MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7,
+        });
+
+        const videoElement = document.createElement('video');
+        const camera = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({ image: videoElement });
+            },
+            width: 1280,
+            height: 720,
+        });
+        camera.start();
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                results.multiHandLandmarks.forEach((landmarks, index) => {
+                    const handLabel = results.multiHandedness[index].label; // "Left" or "Right"
+                    const yPosition = landmarks[9].y; // Landmark 9 is the center of the palm
+
+                    if (handLabel === "Left") {
+                        // Move the left paddle (Player-Controlled)
+                        const containerHeight = gameContainer.clientHeight;
+                        const newTop = Math.min(
+                            containerHeight - paddleHeight - 20,
+                            Math.max(20, yPosition * containerHeight - paddleHeight / 2)
+                        );
+                        paddleLeft.style.top = newTop + 'px';
+                    }
+                });
+            }
+        });
+        
+
+        let scoreNorman = 0;
+        let scorePongky = 0;
+
+        function updateScore(player) {
+            if (player === 'NORMAN') {
+                scoreNorman++;
+            } else if (player === 'PONGKY') {
+                scorePongky++;
+            }
+
+            checkGameOver();
+        }
+
+        function checkGameOver() {
+           if (leftScore >= 13) {
+        window.location.href = 'http://localhost/norman/index.html'; // NORMAN menang
+    } else if (rightScore >= 13) {
+        window.location.href = 'http://localhost/pongky/index.html'; // PONGKY menang
+    }
+}
+  
+        function restartGame() {
+            scoreNorman = 0;
+            scorePongky = 0;
+            alert('Game dimulai ulang!');
+        }
+    </script>
+    
+</body>
+</html>

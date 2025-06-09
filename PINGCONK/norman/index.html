@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+	<meta charset="UTF-8">
+	<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+	<title>Norman menang!</title>
+</head>
+<body>
+
+	<p class="credit-text"  style="color:white;">Special thanks for :<br> Pak Fahrul Effendi<br> Abdul Raffi Anindy <br> Affan Norman Prasetyo <br> Azriel Mohammad Wiradinata <br> Rheezam Ahnaf Handono
+	
+	</p>
+	<img src="congkyseneng.png" alt="Mid Gambar" class="gambar-tengah">
+ 
+ <audio autoplay loop>
+			<source src="menang1.mp3" type="audio/mpeg">
+		</audio>
+  
+  
+</body>
+</html>
+
+<style>
+body{
+	background : url('norman.jpg');
+	background-size: cover;    
+	font-family: 'Press Start 2P', bitmap font; /* Use pixel font */
+
+}
+
+.gambar-tengah {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 500px; /* Ubah sesuai ukuran */
+  pointer-events: none; /* Supaya tidak menghalangi interaksi lain */
+}
+
+.credit-text{
+  font-size: 14px;
+  line-height: 2;
+  text-align: center;
+  margin-top: 30px;
+  margin-left: 800px;
+  font-family: 'Press Start 2P', monospace;
+}
+
+
+
+</style>
+
+
+
+
+<script>
+    // Fungsi untuk memulai ulang permainan
+    function restartGame() {
+      window.location.href = 'http://localhost/lobby/index.html'; // Ganti dengan file utama game
+    }
+
+    // Event listener untuk mendeteksi tombol Enter
+    document.addEventListener('keydown', function(event) {
+      if (event.key === 'Enter') {
+        restartGame();
+      }
+    });
+</script>
+  
+  
